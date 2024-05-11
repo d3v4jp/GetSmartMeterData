@@ -2,12 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # Get SmartMeter(Wi-SUN Profile for ECHONET Lite)
-#
-# 2024/03/03 ver:1.0 tonasuzuki
-#
-#
 
-#
 import requests
 import json
 import logging
@@ -146,7 +141,7 @@ class CommEchoNet:
     def ScanDevice(self):
         bResult=False
         logging.info('デバイススキャン')
-        bResult= self.SendCommand("SKSCAN 2 FFFFFFFF 6 0")
+        bResult= self.SendCommand("SKSCAN 2 FFFFFFFF 6")
         if (bResult):
             bConnected = False
             bDescription = False
@@ -233,7 +228,7 @@ class CommEchoNet:
         # 瞬時電力計測値取得コマンドフレーム
         szEchonetCommandHeader = b'\x10\x81\x00\x01\x05\xFF\x01\x02\x88\x01\x62\x01'
         szEchonetCommand = szEchonetCommandHeader + szEPC + b'\00'
-        szCommand = "SKSENDTO 1 {0} 0E1A 1 0 {1:04X} ".format(self.LocalIPAddr, len(szEchonetCommand))
+        szCommand = "SKSENDTO 1 {0} 0E1A 1 {1:04X} ".format(self.LocalIPAddr, len(szEchonetCommand))
         bResult= self.SendCommand(szCommand , szEchonetCommand)
         bConnected = False
         fTimeOut = time.time() + float(COMMAND_TIMEOUT)
@@ -244,7 +239,7 @@ class CommEchoNet:
             # 結果データを得る
             if szData.startswith("ERXUDP"):
                 ResultCols = szData.strip().split(' ')  #結果をスペースごとに分ける
-                szEData = ResultCols[9]  # 9個目が結果データ(EData)
+                szEData = ResultCols[8]  # 9個目が結果データ(EData)
                 seoj = szEData[ 8:8 +6]  # 8bytes目から6bytesがSEOJ(送信元ECHONET Liteオブジェクト) 
                 deoj = szEData[14:14+6]  # 14bytes目から6bytesがDEOJ(受信先ECHONET Liteオブジェクト) 
                 esv  = szEData[20:20+2]  # 20bytes目から2bytesがESV(ECHONET Liteサービス結果)
@@ -307,55 +302,19 @@ class CommEchoNet:
         return(fResult)
 #class CommEchoNet
 
-class AkiboxLed:
-    def __init__(self):
-        self.clear()
-
-    def __led(self,nLedNumber,nLedCmd):
-        if ((nLedNumber>=1) and (nLedNumber<=4) ) :
-            szDir = '/sys/class/leds/led{0:1d}/brightness'.format(nLedNumber)
-            if (nLedCmd==0) :
-                szCmd = '0'
-            else:
-                szCmd = '1'
-            fDev = open(szDir, "w")
-            fDev.write(szCmd)
-            fDev.close()
-    
-    def clear(self):
-        nLedNumber=4
-        while (nLedNumber>0) :
-            self.__led(nLedNumber,0)
-            nLedNumber-=1
-    
-    # Aki-boxのLEDを点灯する(nLedNumberは 1～4)
-    def on(self,nLedNumber):
-        self.__led(nLedNumber,1)
-
-    # Aki-boxのLEDを消灯する(nLedNumberは 1～4)    
-    def off(self,nLedNumber):
-        self.__led(nLedNumber,0)
-
-#class AkiboxLed:
-
-
 #######################################################################
 # Global Functions
 
 
 ## main loop
 echonet=CommEchoNet()
-boxled=AkiboxLed()
 
 def main(arg1, arg2):
     # Get Power-data from EchoNet
-    boxled.on(3)
-    boxled.on(4)
     nMeasuredPower=echonet.GetMeasuredPower()
     logging.info(u"瞬時電力計測値:{0}[W]".format(nMeasuredPower))
     fIntegratedpower=echonet.GetIntegratedpower()
     logging.info(u"積算電力量計測値:{0}[KW]".format(fIntegratedpower))
-    boxled.off(4)
     # POST HomeAssistant
     try:
         response = requests.post(
@@ -365,17 +324,15 @@ def main(arg1, arg2):
         )
     except Exception as e:
         logging.info('ERROR: Post webhook')
-        boxled.off(3)
 
 def _atexit():
-    boxled.clear()
+    pass
 
 ## Python Signal Handler 
 if __name__ == '__main__':
     # 終了ハンドラに登録する
     atexit.register(_atexit)
     if (echonet.InitConnection()):
-        boxled.on(2)
         # 起動して5秒目から、UPDATE_DATA_TIME秒ごとにmain関数を実行する。
         signal.signal(signal.SIGALRM, main)
         signal.setitimer(signal.ITIMER_REAL, 5, UPDATE_DATA_TIME)
