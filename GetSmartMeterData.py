@@ -316,14 +316,16 @@ def main(arg1, arg2):
     fIntegratedpower=echonet.GetIntegratedpower()
     logging.info(u"積算電力量計測値:{0}[KW]".format(fIntegratedpower))
     # POST HomeAssistant
-    try:
-        response = requests.post(
-            HA_URL,
-            json={'measuredpower': nMeasuredPower, 'integratedpower': fIntegratedpower},
-            headers={"Content-Type": "application/json"}
-        )
-    except Exception as e:
-        logging.info('ERROR: Post webhook')
+    # 瞬時電力あるいは積算電力量で0が取得される場合はHAのノイズデータになるためwebhookをしない
+    if nMeasuredPower > 0　and fIntegratedpower > 0: 
+        try:
+            response = requests.post(
+                HA_URL,
+                json={'measuredpower': nMeasuredPower, 'integratedpower': fIntegratedpower},
+                headers={"Content-Type": "application/json"}
+            )
+        except Exception as e:
+            logging.info('ERROR: Post webhook')
 
 def _atexit():
     pass
